@@ -267,4 +267,5 @@ func EditUser(botCtx *user.BotContext, page, Index int) {
 	rows = append(rows, tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("Просмотр всех продаж сети "+sufixs[2], "hui")))
 	rows = append(rows, tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("Редактирование сети "+sufixs[3], "hui")))
 	rows = append(rows, tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("« назад", "hui")))
+
 }
