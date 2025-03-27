@@ -2,6 +2,7 @@ package db
 
 import (
 	"BOTPROMICK/config"
+	"BOTPROMICK/db/models/product"
 	"BOTPROMICK/db/models/user"
 	"fmt"
 	"log"
@@ -23,7 +24,7 @@ func Connect(cfg *config.Config) {
 	}
 	log.Println("Connected to database.")
 
-	if err := DB.AutoMigrate(&user.User{}, &user.Network{}, &user.UserNetwork{}, &user.Invite{}); err != nil {
+	if err := DB.AutoMigrate(&user.User{}, &user.Network{}, &user.UserNetwork{}, &user.Invite{}, &product.Product{}, &product.Sale{}, &product.InputProduct{}, &product.InputSale{}, &product.Photo{}); err != nil {
 		log.Fatalf("Error creating tables: %v", err)
 	} else {
 		log.Println("Tables created successfully.")

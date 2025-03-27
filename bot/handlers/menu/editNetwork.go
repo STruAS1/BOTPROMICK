@@ -28,7 +28,7 @@ func EditNetworkNameHandler(botCtx *user.BotContext) {
 		var rows [][]tgbotapi.InlineKeyboardButton
 		switch NetworkData.ActiveStep {
 		case 0:
-			text := "Введите новое название сети:"
+			text := "🔄️Введите новое название сети:"
 			rows = append(rows, tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("🚫 Отмена", "back")))
 			if state.MessageID == 0 {
 				msg := tgbotapi.NewMessage(botCtx.TelegramID, text)

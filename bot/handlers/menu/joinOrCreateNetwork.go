@@ -37,7 +37,7 @@ func HandleJoinNetwork(botCtx *user.BotContext) {
 	rows = append(rows, tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("🚀 Главное меню", "back")))
 	switch JoinData.ActiveStep {
 	case 0:
-		text := "Введите код приглашения:"
+		text := "🔑 Введите код приглашения:"
 		if state.MessageID == 0 {
 			msg := tgbotapi.NewMessage(botCtx.TelegramID, text)
 			msg.ParseMode = "HTML"
@@ -53,7 +53,7 @@ func HandleJoinNetwork(botCtx *user.BotContext) {
 		JoinData.ActiveStep++
 	case 1:
 		if len(Text) < 8 {
-			text := "Некорректный код. Попробуйте ещё раз."
+			text := "❌ <b> Некорректный код. Попробуйте ещё раз. </b>"
 			if state.MessageID == 0 {
 				msg := tgbotapi.NewMessage(botCtx.TelegramID, text)
 				msg.ParseMode = "HTML"
@@ -71,7 +71,7 @@ func HandleJoinNetwork(botCtx *user.BotContext) {
 
 		bytes, err := hex.DecodeString(Text)
 		if err != nil || len(bytes) < 4 {
-			text := "Некорректный формат кода. Введите заново."
+			text := "❌ <b>Некорректный формат кода. Введите заново.</b>"
 			msg := tgbotapi.NewMessage(botCtx.TelegramID, text)
 			msg.ParseMode = "HTML"
 			msg.DisableWebPagePreview = true
@@ -82,7 +82,7 @@ func HandleJoinNetwork(botCtx *user.BotContext) {
 
 		NetworkIdPlusBillion := binary.BigEndian.Uint32(bytes)
 		if NetworkIdPlusBillion < 1_000_000_000 {
-			text := "Некорректный код. Попробуйте ещё раз."
+			text := "❌ <b>Некорректный код. Введите заново.</b>"
 			msg := tgbotapi.NewMessage(botCtx.TelegramID, text)
 			msg.ParseMode = "HTML"
 			msg.DisableWebPagePreview = true
@@ -94,7 +94,7 @@ func HandleJoinNetwork(botCtx *user.BotContext) {
 		NetworkId := NetworkIdPlusBillion - 1_000_000_000
 		Network := user.GetNetworkById(db.DB, uint(NetworkId))
 		if Network == nil {
-			text := "Ошибка: сеть не найдена."
+			text := "❌ Ошибка: сеть не найдена."
 			msg := tgbotapi.NewMessage(botCtx.TelegramID, text)
 			msg.ParseMode = "HTML"
 			msg.DisableWebPagePreview = true
@@ -104,7 +104,7 @@ func HandleJoinNetwork(botCtx *user.BotContext) {
 		}
 
 		if err := Network.NewUser(db.DB, botCtx.User, false); err != nil {
-			text := fmt.Sprintf("Ошибка: %s", err.Error())
+			text := fmt.Sprintf("❌ Ошибка: %s", err.Error())
 			msg := tgbotapi.NewMessage(botCtx.TelegramID, text)
 			msg.ParseMode = "HTML"
 			msg.DisableWebPagePreview = true
@@ -133,7 +133,7 @@ func CancelToJoinNetwork(botCtx *user.BotContext) {
 	if network == nil {
 		return
 	}
-	err := network.RemoveUser(db.DB, botCtx.User, botCtx.Ctx.BotAPI, "Вы отменили заявку на вступление!")
+	err := network.RemoveUser(db.DB, botCtx.User, botCtx.Ctx.BotAPI, "Вы отменили заявку на вступление! 😓")
 	if err != nil {
 		fmt.Print(err)
 	}

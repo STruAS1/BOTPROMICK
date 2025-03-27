@@ -117,7 +117,7 @@ func (ctx *Context) CleanupOldUsers() {
 			state := value.(*UserState)
 
 			state.mu.Lock()
-			inactive := now.Sub(state.LastSeen) > 30*time.Minute
+			inactive := now.Sub(state.LastSeen) > 1*time.Hour
 			state.mu.Unlock()
 
 			if inactive {

@@ -34,6 +34,7 @@ type UserNetwork struct {
 	Confirmed       bool
 	CanSell         bool
 	CanInviteUser   bool
+	CanEditUser     bool
 	CanEditNetwork  bool
 	CanViewAllSales bool `gorm:"column:CanViewAllSales"`
 }

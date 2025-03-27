@@ -2,13 +2,15 @@ package handlers
 
 import (
 	"BOTPROMICK/bot/handlers/menu"
+	"BOTPROMICK/bot/handlers/sales"
 	"BOTPROMICK/db/models/user"
+	"strconv"
 	"strings"
 )
 
 var nameHandlers = map[string]func(*user.BotContext){
-	"menu": menu.Handle,
-	// "JokeMenu": MenuJokes.Handle,
+	"menu":  menu.Handle,
+	"sales": sales.Handle,
 }
 
 func HandleUpdate(botCtx *user.BotContext) {
@@ -43,6 +45,13 @@ func HandleUpdate(botCtx *user.BotContext) {
 			case "NetworkSettingsName":
 				botCtx.UpdateUserName("menu")
 				menu.EditNetworkNameHandler(botCtx)
+			case "NewSale":
+				botCtx.UpdateUserName("sales")
+				sales.GetAllProductsHandler(botCtx)
+			case "product":
+				botCtx.UpdateUserName("sales")
+				productID, _ := strconv.ParseInt(strings.Split(botCtx.CallbackQuery.Data, "_")[1], 10, 0)
+				sales.NewSaleHandler(botCtx, uint(productID))
 			// case "Docs":
 			// 	context.UpdateUserName(botCtx, "start")
 			// 	start.HandleDocs(botCtx)

@@ -2,6 +2,7 @@ package bot
 
 import (
 	"BOTPROMICK/bot/handlers"
+	InlineQuery "BOTPROMICK/bot/inlineQuery"
 	"BOTPROMICK/config"
 	"BOTPROMICK/db"
 	"BOTPROMICK/db/models/user"
@@ -75,6 +76,9 @@ func processUpdate(ctx *user.Context, update tgbotapi.Update) {
 		TelegramID = update.CallbackQuery.Message.Chat.ID
 		callbackQuery = update.CallbackQuery
 		lastAction = "callback"
+	} else if update.InlineQuery != nil {
+		InlineQuery.HandleInlineQuery(ctx.BotAPI, &update)
+		return
 	} else {
 		return
 	}

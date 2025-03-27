@@ -34,14 +34,15 @@ func HandleRegister(botCtx *user.BotContext) {
 
 	switch RegisterData.ActiveStep {
 	case 0:
-		msg := tgbotapi.NewMessage(botCtx.TelegramID, "Введите ваше ФИО:")
-		botCtx.SendMessage(msg)
+		msg := tgbotapi.NewMessage(botCtx.TelegramID, "👤 Введите ваше ФИО:")
+		botCtx.Ctx.BotAPI.Send(msg)
 		RegisterData.ActiveStep++
 	case 1:
 		if botCtx.Message != nil {
 			RegisterData.FullName = Text
-			msg := tgbotapi.NewMessage(botCtx.TelegramID, "Введите ваш стаж работы (в годах):")
-			botCtx.SendMessage(msg)
+			msg := tgbotapi.NewMessage(botCtx.TelegramID, "⌛<b>Введите ваш стаж работы (в годах): </b>")
+			msg.ParseMode = "HTML"
+			botCtx.Ctx.BotAPI.Send(msg)
 			RegisterData.ActiveStep++
 		}
 	case 2:
@@ -49,32 +50,38 @@ func HandleRegister(botCtx *user.BotContext) {
 		_, err := fmt.Sscanf(Text, "%d", &experience)
 		if err == nil {
 			RegisterData.Experience = experience
-			msg := tgbotapi.NewMessage(botCtx.TelegramID, "Отправьте ваш номер телефона, нажав на кнопку ниже.")
+			msg := tgbotapi.NewMessage(botCtx.TelegramID, "📱<b>Подтвердите ваш номер телефона, нажав на кнопку ниже.</b>")
 			keyboard := tgbotapi.NewReplyKeyboard(
 				tgbotapi.NewKeyboardButtonRow(
-					tgbotapi.NewKeyboardButtonContact("Отправить контакт"),
+					tgbotapi.NewKeyboardButtonContact("Подтвердить ✅"),
 				),
 			)
+			msg.ParseMode = "HTML"
 			msg.ReplyMarkup = keyboard
-			botCtx.SendMessage(msg)
+			botCtx.Ctx.BotAPI.Send(msg)
 			RegisterData.ActiveStep++
 		} else {
-			botCtx.SendMessage(tgbotapi.NewMessage(botCtx.TelegramID, "Пожалуйста, введите стаж работы числом."))
+			msg := tgbotapi.NewMessage(botCtx.TelegramID, "⌛<b>Введите ваш стаж работы (в годах): </b>")
+			msg.ParseMode = "HTML"
+			botCtx.Ctx.BotAPI.Send(msg)
 		}
 	case 3:
 		if botCtx.Message != nil && botCtx.Message.Contact != nil {
 			RegisterData.Phone = botCtx.Message.Contact.PhoneNumber
-			msg := tgbotapi.NewMessage(botCtx.TelegramID, "Теперь отправьте свою геолокацию, используя кнопку ниже.")
+			msg := tgbotapi.NewMessage(botCtx.TelegramID, "<b>Теперь отправьте свою геолокацию, используя кнопку ниже.</b>")
 			keyboard := tgbotapi.NewReplyKeyboard(
 				tgbotapi.NewKeyboardButtonRow(
-					tgbotapi.NewKeyboardButtonLocation("Отправить геолокацию"),
+					tgbotapi.NewKeyboardButtonLocation("Отправить геолокацию 🗺️"),
 				),
 			)
+			msg.ParseMode = "HTML"
 			msg.ReplyMarkup = keyboard
-			botCtx.SendMessage(msg)
+			botCtx.Ctx.BotAPI.Send(msg)
 			RegisterData.ActiveStep++
 		} else {
-			botCtx.SendMessage(tgbotapi.NewMessage(botCtx.TelegramID, "Пожалуйста, используйте кнопку для отправки контакта."))
+			msg := tgbotapi.NewMessage(botCtx.TelegramID, "❌ Пожалуйста, подтвердите кнопку для отправки контакта.")
+			msg.ParseMode = "HTML"
+			botCtx.Ctx.BotAPI.Send(msg)
 		}
 	case 4:
 		if botCtx.Message != nil && botCtx.Message.Location != nil {
@@ -83,7 +90,7 @@ func HandleRegister(botCtx *user.BotContext) {
 			delete(state.Data, "Register")
 			return
 		} else {
-			botCtx.SendMessage(tgbotapi.NewMessage(botCtx.TelegramID, "Пожалуйста, отправьте свою геолокацию, используя кнопку."))
+			botCtx.Ctx.BotAPI.Send(tgbotapi.NewMessage(botCtx.TelegramID, "❌ Пожалуйста, отправьте свою геолокацию, используя кнопку."))
 		}
 	}
 	state.Data["Register"] = RegisterData

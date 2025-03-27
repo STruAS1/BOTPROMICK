@@ -19,6 +19,8 @@ func Handle(botCtx *user.BotContext) {
 		handleLvl4(botCtx)
 	case 5:
 		handleLvl5(botCtx)
+	case 6:
+		handleLvl6(botCtx)
 	}
 
 }
@@ -40,12 +42,12 @@ func handleLvl2(botCtx *user.BotContext) {
 		case "usersWaitForComfirmed":
 			delete(state.Data, "AgentsPages")
 			NetworkAgentsWaitForComfirmed(botCtx)
-		// case "Agent":
-		// 	if len(data) == 3 {
-		// 		UserId, _ := strconv.ParseInt(data[2], 10, 8)
-		// 		pageId, _ := strconv.ParseInt(data[1], 10, 8)
-		// 		ConFirmUser(botCtx, int(pageId), int(UserId))
-		// 	}
+		case "Agent":
+			if len(data) == 3 {
+				UserId, _ := strconv.ParseInt(data[2], 10, 8)
+				pageId, _ := strconv.ParseInt(data[1], 10, 8)
+				EditUser(botCtx, int(pageId), int(UserId))
+			}
 		default:
 			NetworkAgents(botCtx)
 		}
@@ -99,5 +101,18 @@ func handleLvl5(botCtx *user.BotContext) {
 		}
 	} else {
 		EditNetworkNameHandler(botCtx)
+	}
+}
+
+func handleLvl6(botCtx *user.BotContext) {
+	if botCtx.CallbackQuery != nil {
+		data := strings.Split(botCtx.CallbackQuery.Data, "_")
+		if len(data) != 3 {
+			NetworkAgents(botCtx)
+			return
+		}
+		UserId, _ := strconv.ParseInt(data[2], 10, 0)
+		pageId, _ := strconv.ParseInt(data[1], 10, 0)
+		EditUser(botCtx, int(pageId), int(UserId))
 	}
 }

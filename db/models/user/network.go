@@ -24,10 +24,11 @@ type Network struct {
 }
 type Invite struct {
 	ID           uint64 `gorm:"primaryKey"`
-	Secret       string
-	ByUserID     uint64
-	ForNetworkID uint64
-	UsedByUserID uint64
+	Secret       string `gorm:"size:12;not null;uniqueIndex"`
+	ByUserID     uint64 `gorm:"not null"`
+	ForNetworkID uint64 `gorm:"not null"`
+	UsedByUserID uint64 `gorm:"default:0"`
+	Nonce        int64  `gorm:"not null;uniqueIndex"`
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
@@ -120,34 +121,36 @@ func (n *Network) GetAllUsers(DB *gorm.DB, confirmed bool) ([]struct {
 	return usersData, nil
 }
 
-func generateSecretKey(networkID, byUserID uint64) string {
-	nonce := time.Now().UnixNano()
+func generateSecretKey(networkID, byUserID uint32, nonce int64) string {
 	data := fmt.Sprintf("%d:%d:%d", networkID, byUserID, nonce)
 
 	h := hmac.New(sha256.New, []byte(data))
-	return hex.EncodeToString(h.Sum(nil))
+	return hex.EncodeToString(h.Sum(nil)[:6])
 }
+func (n *Network) CreateInvite(db *gorm.DB, byUserID uint32) (string, error) {
+	networkID := uint32(n.ID)
+	nonce := time.Now().UnixNano()
 
-func (n *Network) CreateInvite(db *gorm.DB, byUserID uint64) (string, error) {
-
-	secretKey := generateSecretKey(uint64(n.ID), byUserID)
+	secretKey := generateSecretKey(networkID, byUserID, nonce)
 
 	h := hmac.New(sha256.New, []byte(secretKey))
-	h.Write([]byte(fmt.Sprintf("%d:%d:%s", uint64(n.ID), byUserID, secretKey)))
-	hashed := h.Sum(nil)
+	data := fmt.Sprintf("%d:%d:%d:%s", networkID, byUserID, nonce, secretKey)
+	h.Write([]byte(data))
+	hashed := h.Sum(nil)[:12]
 
 	invite := Invite{
 		Secret:       secretKey,
-		ByUserID:     byUserID,
+		ByUserID:     uint64(byUserID),
 		ForNetworkID: uint64(n.ID),
+		Nonce:        nonce,
 	}
 	if err := db.Create(&invite).Error; err != nil {
 		return "", err
 	}
 
-	idBytes := make([]byte, 8)
-	binary.BigEndian.PutUint64(idBytes, invite.ID)
-
+	inviteID := uint32(invite.ID) + 1_000_000_000
+	idBytes := make([]byte, 4)
+	binary.BigEndian.PutUint32(idBytes, inviteID)
 	inviteStr := hex.EncodeToString(append(idBytes, hashed...))
 
 	return inviteStr, nil
@@ -159,10 +162,10 @@ func (n *Network) NewUser(db *gorm.DB, u *User, confirmed bool) error {
 		return err
 	}
 	if countOfOwner != 0 {
-		return errors.New("вы не можете вступить в сеть")
+		return errors.New("❌ Вы не можете вступить в сеть")
 	}
 	if u.UserNetwork != nil && u.UserNetwork.NetworkID == n.ID {
-		return errors.New("вы уже в этой сети")
+		return errors.New("🫥 Вы уже в этой сети")
 	}
 	if u.UserNetwork != nil {
 		if err := db.Where("user_id = ?", u.ID).Delete(&UserNetwork{}).Error; err != nil {
@@ -186,11 +189,11 @@ func (n *Network) NewUser(db *gorm.DB, u *User, confirmed bool) error {
 
 func (n *Network) RemoveUser(db *gorm.DB, u *User, BotAPI *tgbotapi.BotAPI, message string) error {
 	if n.OwnerID == u.ID {
-		return errors.New("владелец сети не может покинуть её")
+		return errors.New("Владелец сети не может ее покинуть 🤷")
 	}
 
 	if u.UserNetwork == nil || u.UserNetwork.NetworkID != n.ID {
-		return errors.New("вы не состоите в этой сети")
+		return errors.New("🫥 Вы не состоите в данной сети")
 	}
 
 	if err := db.Where("user_id = ? AND network_id = ?", u.ID, n.ID).Delete(&UserNetwork{}).Error; err != nil {
@@ -207,29 +210,51 @@ func (n *Network) RemoveUser(db *gorm.DB, u *User, BotAPI *tgbotapi.BotAPI, mess
 
 func (u *User) UseInvite(db *gorm.DB, inviteStr string) error {
 	bytes, err := hex.DecodeString(inviteStr)
-	if err != nil || len(bytes) < 40 {
-		return errors.New("некорректное приглашение")
+	if err != nil || len(bytes) != 16 {
+		return errors.New("❌ некорректное приглашение")
 	}
-	inviteID := binary.BigEndian.Uint64(bytes[:8])
+
+	inviteIDPlusBillion := binary.BigEndian.Uint32(bytes[:4])
+	if inviteIDPlusBillion < 1_000_000_000 {
+		return errors.New("❌ Некорректный ID приглашения")
+	}
+	inviteID := inviteIDPlusBillion - 1_000_000_000
+
 	var invite Invite
 	if err := db.Where("id = ? AND used_by_user_id = 0", inviteID).First(&invite).Error; err != nil {
-		return errors.New("приглашение не найдено или уже использовано")
+		return errors.New("🫥 Приглашение не найдено или уже использовано")
 	}
-	expectedSecretKey := generateSecretKey(invite.ForNetworkID, invite.ByUserID)
+
+	if time.Since(invite.CreatedAt) > 24*time.Hour {
+		return errors.New("❌ Приглашение истекло")
+	}
+
+	networkID := uint32(invite.ForNetworkID)
+	byUserID := uint32(invite.ByUserID)
+	nonce := invite.Nonce
+
+	expectedSecretKey := generateSecretKey(networkID, byUserID, nonce)
+
 	h := hmac.New(sha256.New, []byte(expectedSecretKey))
-	h.Write([]byte(fmt.Sprintf("%d:%d:%s", invite.ForNetworkID, invite.ByUserID, expectedSecretKey)))
-	expectedHash := h.Sum(nil)
-	if !hmac.Equal(expectedHash, bytes[8:]) {
-		return errors.New("невалидный хеш приглашения")
+	data := fmt.Sprintf("%d:%d:%d:%s", networkID, byUserID, nonce, expectedSecretKey)
+	h.Write([]byte(data))
+	expectedHash := h.Sum(nil)[:12]
+
+	if !hmac.Equal(expectedHash, bytes[4:]) {
+		return errors.New("❌ Невалидный хеш приглашения")
 	}
+
 	invite.UsedByUserID = uint64(u.ID)
-	network := u.UserNetwork.Network(db)
+
+	network := GetNetworkById(db, uint(networkID))
 	if network == nil {
-		return errors.New("неизвестная ошибка")
+		return errors.New("🦋 Неизвестная ошибка")
 	}
+
 	if err := network.NewUser(db, u, true); err != nil {
 		return err
 	}
+
 	if err := db.Save(&invite).Error; err != nil {
 		return err
 	}

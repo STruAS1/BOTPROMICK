@@ -63,7 +63,7 @@ func Agents(botCtx *user.BotContext, confirmed bool) {
 						}
 						User.UserNetwork.Confirmed = true
 						db.DB.Save(User.UserNetwork)
-						botCtx.Ctx.BotAPI.Send(tgbotapi.NewMessage(userTGID, "Вас приняли в сеть!"))
+						botCtx.Ctx.BotAPI.Send(tgbotapi.NewMessage(userTGID, "✅ Вас приняли в сеть!"))
 						delete(state.Data, "AgentsPages")
 						NetworkAgents(botCtx)
 						return
@@ -81,7 +81,7 @@ func Agents(botCtx *user.BotContext, confirmed bool) {
 						if User.UserNetwork == nil || User.UserNetwork.Confirmed {
 							return
 						}
-						err = network.RemoveUser(db.DB, User, botCtx.Ctx.BotAPI, "Ваша заявка на вступление в сеть отклонена!")
+						err = network.RemoveUser(db.DB, User, botCtx.Ctx.BotAPI, "❌ Ваша заявка на вступление в сеть отклонена!")
 						if err != nil {
 							fmt.Print(err)
 						}
@@ -213,6 +213,9 @@ func ConFirmUser(botCtx *user.BotContext, page, Index int) {
 	if !exist {
 		NetworkAgentsWaitForComfirmed(botCtx)
 	}
+	if !botCtx.User.UserNetwork.CanInviteUser {
+		return
+	}
 	Agent := _AgentsPages.Pages[page][Index]
 	var rows [][]tgbotapi.InlineKeyboardButton
 	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
@@ -245,16 +248,68 @@ func EditUser(botCtx *user.BotContext, page, Index int) {
 	if err != nil {
 		return
 	}
+	data := strings.Split(botCtx.CallbackQuery.Data, "_")
+	switch data[0] {
+	case "CanSell", "CanInviteUser", "CanViewAllSales", "CanEditNetwork", "CanEditUser":
+		if User.UserNetwork == nil {
+			return
+		}
+		if botCtx.User.ID == User.ID || Agent.IsOwner {
+			callback := tgbotapi.NewCallbackWithAlert(botCtx.CallbackQuery.ID, "Вы не можете изменть права этому пользователю 🐖")
+			callback.ShowAlert = false
+			botCtx.Ctx.BotAPI.Send(callback)
+			return
+		}
+		if botCtx.User.UserNetwork != nil && botCtx.User.UserNetwork.CanEditUser {
+			flags := map[string]*bool{
+				"CanSell":         &User.UserNetwork.CanSell,
+				"CanInviteUser":   &User.UserNetwork.CanInviteUser,
+				"CanEditUser":     &User.UserNetwork.CanEditUser,
+				"CanViewAllSales": &User.UserNetwork.CanViewAllSales,
+				"CanEditNetwork":  &User.UserNetwork.CanEditNetwork,
+			}
+			*flags[data[0]] = !*flags[data[0]]
+			db.DB.Save(User.UserNetwork)
+		} else {
+			return
+		}
+	case "delete":
+		if User.UserNetwork == nil {
+			return
+		}
+		if botCtx.User.ID == User.ID || Agent.IsOwner {
+			callback := tgbotapi.NewCallbackWithAlert(botCtx.CallbackQuery.ID, "❌ Вы не можете удалить этого пользователя!")
+			callback.ShowAlert = false
+			botCtx.Ctx.BotAPI.Send(callback)
+			return
+		}
+		network := User.UserNetwork.Network(db.DB)
+		if network == nil {
+			return
+		}
+		if botCtx.User.UserNetwork != nil && botCtx.User.UserNetwork.CanEditUser {
+			err = network.RemoveUser(db.DB, User, botCtx.Ctx.BotAPI, "🫥 Вас удалили из сети!")
+			if err != nil {
+				fmt.Print(err)
+			}
+			delete(state.Data, "AgentsPages")
+			NetworkAgents(botCtx)
+			return
+		} else {
+			return
+		}
+	}
 	msgText := fmt.Sprintf("<b><i><a href='https://t.me/%s'>👤 %s</a></i></b>", User.Username, User.FullName)
 	msgText += fmt.Sprintf("💰 <b>Баланс: <code>%s</code></b>\n\n", Utilities.ConvertToFancyStringFloat(fmt.Sprintf("%f", float64(User.Balance/100))))
 	msgText += "<b>📊Продаж:</b>\n"
 	msgText += fmt.Sprintf("⭐️ <b>Сегодня:</b> <code>%s</code>\n", Utilities.ConvertToFancyString(1))
 	msgText += fmt.Sprintf("👀 <b>За всё время:</b> <code>%s</code>\n", Utilities.ConvertToFancyString(1))
 	var rows [][]tgbotapi.InlineKeyboardButton
-	sufixs := [4]string{"❌", "❌", "❌", "❌"}
+	sufixs := [5]string{"❌", "❌", "❌", "❌", "❌"}
 	for i, sufix := range [...]bool{
 		User.UserNetwork.CanSell,
 		User.UserNetwork.CanInviteUser,
+		User.UserNetwork.CanEditUser,
 		User.UserNetwork.CanViewAllSales,
 		User.UserNetwork.CanEditNetwork,
 	} {
@@ -262,10 +317,25 @@ func EditUser(botCtx *user.BotContext, page, Index int) {
 			sufixs[i] = "✅"
 		}
 	}
-	rows = append(rows, tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("Делать продажи "+sufixs[0], "hui")))
-	rows = append(rows, tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("Просмотр/Приглашение агентов "+sufixs[1], "hui")))
-	rows = append(rows, tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("Просмотр всех продаж сети "+sufixs[2], "hui")))
-	rows = append(rows, tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("Редактирование сети "+sufixs[3], "hui")))
-	rows = append(rows, tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("« назад", "hui")))
-
+	if botCtx.User.UserNetwork != nil && botCtx.User.UserNetwork.CanEditUser {
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("Отправлять продажи "+sufixs[0], fmt.Sprintf("CanSell_%d_%d", page, Index))))
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("Просмотр/Приглашение агентов "+sufixs[1], fmt.Sprintf("CanInviteUser_%d_%d", page, Index))))
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("Изменять права агентов "+sufixs[2], fmt.Sprintf("CanEditUser_%d_%d", page, Index))))
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("Просмотр всех продаж сети "+sufixs[3], fmt.Sprintf("CanViewAllSales_%d_%d", page, Index))))
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("Редактирование сети "+sufixs[4], fmt.Sprintf("CanEditNetwork_%d_%d", page, Index))))
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("Удалить из сети 🗑️", fmt.Sprintf("delete_%d_%d", page, Index))))
+	}
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("« назад", "back")))
+	if state.MessageID == 0 {
+		msg := tgbotapi.NewMessage(botCtx.TelegramID, msgText)
+		msg.ParseMode = "HTML"
+		msg.DisableWebPagePreview = true
+		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(rows...)
+		botCtx.SendMessage(msg)
+	} else {
+		msg := tgbotapi.NewEditMessageTextAndMarkup(botCtx.TelegramID, state.MessageID, msgText, tgbotapi.NewInlineKeyboardMarkup(rows...))
+		msg.DisableWebPagePreview = true
+		msg.ParseMode = "HTML"
+		botCtx.Ctx.BotAPI.Send(msg)
+	}
 }
